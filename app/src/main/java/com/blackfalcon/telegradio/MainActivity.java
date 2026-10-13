@@ -697,4 +697,293 @@ public class MainActivity extends Activity {
                 n.setGravity(Gravity.CENTER);
                 n.setPadding(0, dp(4), 0, 0);
                 c.addView(e);
-                c.addView(n); 
+                c.addView(n);
+                c.setOnClickListener(v -> {
+                    activeLabel = g[0] + " " + g[1];
+                    qTag = g[2]; qCc = ""; qLang = ""; qName = "";
+                    searchEt.setText("");
+                    rebuildChips();
+                    showTab(1);
+                    runSearch(true, true);
+                });
+                row.addView(c, lp(0, WRAP, 1f, 4, 4, 4, 4));
+            }
+            box.addView(row);
+        }
+        sv.addView(box);
+        return sv;
+    }
+
+    // ================================================================ FAVOURITES
+    private View buildFavorites() {
+        FrameLayout box = new FrameLayout(this);
+        fAdapter = new StationAdapter(favs.all());
+        fList = new ListView(this);
+        fList.setDivider(null);
+        fList.setPadding(dp(10), dp(8), dp(10), dp(6));
+        fList.setClipToPadding(false);
+        fList.setAdapter(fAdapter);
+        fList.setOnItemClickListener((p, v, pos, id) -> playStation(favs.all().get(pos)));
+        fEmpty = tv("\u2661\n\nNo saved stations yet.\nTap the heart on any station to keep it here.", 15, GRAY, false);
+        fEmpty.setGravity(Gravity.CENTER);
+        box.addView(fList, new FrameLayout.LayoutParams(MATCH, MATCH));
+        box.addView(fEmpty, new FrameLayout.LayoutParams(MATCH, MATCH));
+        return box;
+    }
+
+    private void refreshFavs() {
+        if (fAdapter == null) return;
+        fAdapter.notifyDataSetChanged();
+        fEmpty.setVisibility(favs.all().isEmpty() ? View.VISIBLE : View.GONE);
+        if (sAdapter != null) sAdapter.notifyDataSetChanged();
+    }
+
+    // ============================================================ STATION ROWS
+    private class StationAdapter extends BaseAdapter {
+        private final List<Station> items;
+        StationAdapter(List<Station> items) { this.items = items; }
+        @Override public int getCount() { return items.size(); }
+        @Override public Object getItem(int i) { return items.get(i); }
+        @Override public long getItemId(int i) { return i; }
+
+        @Override
+        public View getView(int pos, View convert, ViewGroup parent) {
+            if (convert == null) {
+                LinearLayout wrap = new LinearLayout(MainActivity.this);
+                wrap.setPadding(0, dp(3), 0, dp(3));
+                LinearLayout row = new LinearLayout(MainActivity.this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(10), dp(9), dp(4), dp(9));
+                Logo logo = new Logo(50);
+                LinearLayout mid = new LinearLayout(MainActivity.this);
+                mid.setOrientation(LinearLayout.VERTICAL);
+                mid.setPadding(dp(12), 0, dp(6), 0);
+                TextView name = tv("", 16, Color.WHITE, true);
+                name.setSingleLine(true);
+                name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                TextView sub = tv("", 12, GRAY, false);
+                sub.setSingleLine(true);
+                sub.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                mid.addView(name);
+                mid.addView(sub);
+                TextView heart = tv("\u2661", 24, ACCENT, true);
+                heart.setGravity(Gravity.CENTER);
+                heart.setPadding(dp(12), dp(6), dp(12), dp(6));
+                row.addView(logo, new LinearLayout.LayoutParams(dp(50), dp(50)));
+                row.addView(mid, new LinearLayout.LayoutParams(0, WRAP, 1f));
+                row.addView(heart);
+                wrap.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                wrap.setTag(new View[]{row, logo, name, sub, heart});
+                convert = wrap;
+            }
+            View[] v = (View[]) convert.getTag();
+            final Station s = items.get(pos);
+            boolean now = cur != null && cur.uuid.equals(s.uuid) && (pstate == RadioService.PLAYING || pstate == RadioService.LOADING);
+            v[0].setBackground(shape(now ? 0xFF10294A : CARD, now ? ACCENT : EDGE, 14));
+            ((Logo) v[1]).set(s);
+            ((TextView) v[2]).setText((now ? "\u25B6  " : "") + s.name);
+            ((TextView) v[3]).setText(s.subtitle());
+            TextView heart = (TextView) v[4];
+            boolean fav = favs.has(s.uuid);
+            heart.setText(fav ? "\u2665" : "\u2661");
+            heart.setTextColor(fav ? RED : ACCENT);
+            heart.setOnClickListener(x -> { favs.toggle(s); refreshFavs(); updateTunerFav(); updatePlayerUi(); });
+            return convert;
+        }
+    }
+
+    // ================================================================ NOW PLAYING
+    private FrameLayout buildNowPlaying() {
+        FrameLayout fl = new FrameLayout(this);
+        fl.setBackgroundColor(0xFF0A1424);
+        fl.setClickable(true);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        box.setPadding(dp(20), dp(8), dp(20), dp(14));
+
+        TextView close = tv("\u25BE  Close", 15, GRAY, true);
+        close.setPadding(dp(8), dp(10), dp(8), dp(10));
+        close.setOnClickListener(v -> overlay.setVisibility(View.GONE));
+        box.addView(close, lp(WRAP, WRAP, 0, 0, 0, 0, 6));
+
+        nLogo = new Logo(170);
+        box.addView(nLogo, lp(dp(170), dp(170), 0, 0, 4, 0, 12));
+        nName = tv("", 24, Color.WHITE, true);
+        nName.setGravity(Gravity.CENTER);
+        nSub = tv("", 13, GRAY, false);
+        nSub.setGravity(Gravity.CENTER);
+        nNow = tv("", 16, ORANGE, true);
+        nNow.setGravity(Gravity.CENTER);
+        nNow.setPadding(dp(6), dp(10), dp(6), dp(4));
+        nStatus = tv("", 13, GREEN, true);
+        nStatus.setGravity(Gravity.CENTER);
+        eq = new EqView(this);
+        box.addView(nName, lp(MATCH, WRAP, 0, 0, 0, 0, 0));
+        box.addView(nSub, lp(MATCH, WRAP, 0, 0, 2, 0, 0));
+        box.addView(nNow, lp(MATCH, WRAP, 0, 0, 0, 0, 0));
+        box.addView(nStatus, lp(MATCH, WRAP, 0, 0, 0, 0, 0));
+        box.addView(eq, lp(MATCH, dp(56), 0, 10, 8, 10, 8));
+
+        LinearLayout ctl = new LinearLayout(this);
+        ctl.setGravity(Gravity.CENTER);
+        nFav = tv("\u2661", 28, ACCENT, true);
+        nPlay = tv("\u23F8", 32, Color.BLACK, true);
+        nSleep = tv("\u23F1", 26, ACCENT, true);
+        TextView share = tv("\u2197", 28, ACCENT, true);
+        for (TextView t : new TextView[]{nFav, nSleep, share}) { t.setGravity(Gravity.CENTER); t.setPadding(dp(18), dp(8), dp(18), dp(8)); }
+        nPlay.setGravity(Gravity.CENTER);
+        nPlay.setBackground(shape(ACCENT, ACCENT, 38));
+        nPlay.setOnClickListener(v -> togglePlay());
+        nFav.setOnClickListener(v -> { if (cur != null) { favs.toggle(cur); refreshFavs(); updatePlayerUi(); updateTunerFav(); } });
+        nSleep.setOnClickListener(v -> chooseSleep());
+        share.setOnClickListener(v -> {
+            if (cur == null) return;
+            Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType("text/plain");
+            i.putExtra(Intent.EXTRA_TEXT, "\uD83C\uDFA7 " + cur.name + (cur.country.isEmpty() ? "" : " (" + cur.country + ")") + " \u2014 listening on Telegradio\nhttps://telegradio.com/");
+            startActivity(Intent.createChooser(i, null));
+        });
+        ctl.addView(nFav);
+        ctl.addView(nPlay, new LinearLayout.LayoutParams(dp(76), dp(76)));
+        ctl.addView(nSleep);
+        ctl.addView(share);
+        box.addView(ctl, lp(MATCH, WRAP, 0, 0, 8, 0, 8));
+
+        TextView site = tv("\uD83C\uDF10  Open telegradio.com", 14, ACCENT, true);
+        site.setPadding(dp(10), dp(10), dp(10), dp(10));
+        site.setOnClickListener(v -> openUrl("https://telegradio.com/"));
+        box.addView(site);
+
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        fl.addView(sv, new FrameLayout.LayoutParams(MATCH, MATCH));
+        return fl;
+    }
+
+    private void openNowPlaying() {
+        if (cur == null) return;
+        overlay.setVisibility(View.VISIBLE);
+        updatePlayerUi();
+    }
+
+    // ================================================================= PLAYBACK
+    private void openUrl(String u) {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u))); } catch (Exception ignored) { }
+    }
+
+    private void playStation(Station s) {
+        if (Build.VERSION.SDK_INT >= 33 && !askedNotif && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            askedNotif = true;
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 5);
+        }
+        cur = s;
+        pstate = RadioService.LOADING;
+        nowTxt = "";
+        waitingForStation = true;
+        searchNoise = false;
+        if (!noise.isRunning()) noise.start(0.28f); else noise.setVolume(0.28f);
+        Radio.click(s.uuid);
+        Intent i = new Intent(this, RadioService.class).setAction(RadioService.ACT_PLAY).putExtra("s", s.toJson().toString());
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+        updatePlayerUi();
+    }
+
+    private void togglePlay() {
+        if (RadioService.inst != null) {
+            waitingForStation = true;
+            RadioService.inst.toggle();
+        } else if (cur != null) {
+            playStation(cur);
+        }
+    }
+
+    private void stopRadio() {
+        startService(new Intent(this, RadioService.class).setAction(RadioService.ACT_STOP));
+        noise.stop();
+        waitingForStation = false;
+        pstate = RadioService.IDLE;
+        updatePlayerUi();
+    }
+
+    private void onPlayerState(int st, Station s, String now) {
+        if (s != null) cur = s;
+        pstate = st;
+        nowTxt = now == null ? "" : now;
+        if (st == RadioService.PLAYING) {
+            if (waitingForStation) { noise.fadeOut(450); waitingForStation = false; }
+        } else if (st == RadioService.ERROR) {
+            noise.stop();
+            waitingForStation = false;
+            Toast.makeText(this, "Could not play this station \u2014 try another one", Toast.LENGTH_LONG).show();
+        } else if (st == RadioService.IDLE) {
+            noise.stop();
+            waitingForStation = false;
+        }
+        updatePlayerUi();
+    }
+
+    private void updatePlayerUi() {
+        boolean has = cur != null && pstate != RadioService.IDLE;
+        mini.setVisibility(has ? View.VISIBLE : View.GONE);
+        boolean playing = pstate == RadioService.PLAYING || pstate == RadioService.LOADING;
+        String status;
+        switch (pstate) {
+            case RadioService.LOADING: status = "Tuning\u2026"; break;
+            case RadioService.PLAYING: status = "\u25CF LIVE"; break;
+            case RadioService.PAUSED: status = "Paused"; break;
+            case RadioService.ERROR: status = "Could not play"; break;
+            default: status = "";
+        }
+        if (cur != null) {
+            miniLogo.set(cur);
+            miniName.setText(cur.name);
+            miniSub.setText(!nowTxt.isEmpty() ? "\u266A " + nowTxt : status + (cur.country.isEmpty() ? "" : "  \u2022  " + cur.country));
+            nLogo.set(cur);
+            nName.setText(cur.name);
+            nSub.setText(cur.subtitle());
+            nNow.setText(nowTxt.isEmpty() ? "" : "\u266A " + nowTxt);
+            nStatus.setText(status);
+            nStatus.setTextColor(pstate == RadioService.ERROR ? RED : GREEN);
+            boolean fav = favs.has(cur.uuid);
+            nFav.setText(fav ? "\u2665" : "\u2661");
+            nFav.setTextColor(fav ? RED : ACCENT);
+        }
+        miniPlay.setText(playing ? "\u23F8" : "\u25B6");
+        nPlay.setText(playing ? "\u23F8" : "\u25B6");
+        tPlay.setText(playing ? "\u23F8" : "\u25B6");
+        eq.setActive(pstate == RadioService.PLAYING);
+        if (tab != 0 || pstate != RadioService.LOADING) {
+            if (pstate == RadioService.PLAYING) tStatus.setText("\u25CF LIVE \u2014 " + (cur == null ? "" : cur.name));
+            else if (pstate == RadioService.PAUSED) tStatus.setText("Paused");
+        }
+        sAdapter.notifyDataSetChanged();
+        fAdapter.notifyDataSetChanged();
+    }
+
+    // ================================================================ SLEEP TIMER
+    private final Runnable sleepTick = new Runnable() {
+        @Override public void run() {
+            if (RadioService.sleepAtMs > 0) {
+                long left = Math.max(0, RadioService.sleepAtMs - System.currentTimeMillis()) / 60000L;
+                nSleep.setText("\u23F1 " + (left + 1) + "m");
+                nSleep.setTextSize(15);
+            } else {
+                nSleep.setText("\u23F1");
+                nSleep.setTextSize(26);
+            }
+            handler.postDelayed(this, 20000);
+        }
+    };
+
+    private void chooseSleep() {
+        final int[] mins = {15, 30, 45, 60, 90, 0};
+        String[] names = {"15 minutes", "30 minutes", "45 minutes", "1 hour", "1.5 hours", "Off"};
+        new AlertDialog.Builder(this).setTitle("Sleep timer").setItems(names, (d, w) -> {
+            if (RadioService.inst == null) return;
+            startService(new Intent(this, RadioService.class).setAction(RadioService.ACT_SLEEP).putExtra("min", mins[w]));
+            Toast.makeText(this, mins[w] == 0 ? "Sleep timer off" : "The radio will stop in " + names[w], Toast.LENGTH_SHORT).show();
+            handler.postDelayed(sleepTick, 400);
+        }).show();
+    }
+}
