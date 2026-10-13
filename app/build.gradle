@@ -1,0 +1,34 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.blackfalcon.telegradio'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.blackfalcon.telegradio"
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // ExoPlayer plays almost every kind of radio stream (MP3, AAC, Ogg, HLS)
+    implementation 'androidx.media3:media3-exoplayer:1.3.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.3.1'
+    implementation 'androidx.media3:media3-datasource:1.3.1'
+    implementation 'androidx.media3:media3-common:1.3.1'
+}
